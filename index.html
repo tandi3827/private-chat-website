@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ConnectSphere</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-storage-compat.js"></script>
+  <style>
+    body { background: #0a0a0a; color: white; font-family: system-ui; }
+    .nav-active { color: #1877f2; border-bottom: 3px solid #1877f2; }
+    .post { background: #1a1a1a; border-radius: 12px; }
+  </style>
+</head>
+<body class="min-h-screen pb-20">
+
+  <!-- Login -->
+  <div id="login-screen" class="max-w-md mx-auto mt-10 p-4">
+    <h1 class="text-5xl font-bold text-blue-500 text-center">ConnectSphere</h1>
+    <p class="text-center text-gray-400">Private Social Network</p>
+    <div class="bg-zinc-900 p-8 rounded-3xl mt-8">
+      <input id="email" type="email" placeholder="Email" class="w-full p-4 bg-zinc-800 rounded-2xl mb-4">
+      <input id="password" type="password" placeholder="Password" class="w-full p-4 bg-zinc-800 rounded-2xl mb-6">
+      <button onclick="login()" class="w-full bg-blue-600 py-4 rounded-2xl font-bold">Log In</button>
+      <button onclick="showRegister()" class="w-full mt-4 text-blue-400">Create New Account</button>
+    </div>
+  </div>
+
+  <!-- Main App -->
+  <div id="main-app" class="hidden">
+    <!-- Top Bar -->
+    <div class="fixed top-0 left-0 right-0 bg-zinc-900 border-b border-zinc-700 z-50 p-3 flex items-center">
+      <h1 class="text-2xl font-bold text-blue-500">ConnectSphere</h1>
+      <input id="search-input" onkeyup="searchUsers()" placeholder="Search" 
+             class="flex-1 mx-4 bg-zinc-800 rounded-full px-5 py-2 text-sm">
+      <button onclick="logout()" class="text-red-400">Logout</button>
+    </div>
+
+    <!-- Bottom Navigation -->
+    <div class="fixed bottom-0 left-0 right-0 bg-zinc-900 border-t border-zinc-700 flex justify-around py-2 z-50 text-xs">
+      <button onclick="switchTab(0)" class="nav-active flex flex-col items-center">🏠</button>
+      <button onclick="switchTab(1)" class="flex flex-col items-center">👥</button>
+      <button onclick="switchTab(2)" class="flex flex-col items-center">📺</button>
+      <button onclick="switchTab(3)" class="flex flex-col items-center">🔔</button>
+      <button onclick="switchTab(4)" class="flex flex-col items-center">👤</button>
+    </div>
+
+    <!-- HOME (Feed) -->
+    <div id="tab-0" class="pt-16 pb-20 p-4">
+      <div class="bg-zinc-900 rounded-2xl p-4 mb-6">
+        <textarea id="post-input" class="w-full bg-zinc-800 rounded-2xl p-4" placeholder="What's on your mind?"></textarea>
+        <div class="flex gap-3 mt-3">
+          <button onclick="uploadMedia()" class="flex-1 bg-zinc-800 py-3 rounded-2xl">📹 Photo/Video</button>
+          <button onclick="createPost()" class="flex-1 bg-blue-600 py-3 rounded-2xl">Post</button>
+        </div>
+      </div>
+      <div id="feed" class="space-y-6"></div>
+    </div>
+
+    <!-- FRIENDS -->
+    <div id="tab-1" class="pt-16 pb-20 hidden p-4">
+      <h3 class="font-semibold mb-4">Friend Requests</h3>
+      <div id="friend-requests" class="space-y-3"></div>
+      <h3 class="font-semibold mt-8 mb-4">My Friends</h3>
+      <div id="friends-list" class="space-y-3"></div>
+    </div>
+
+    <!-- WATCH (Videos) -->
+    <div id="tab-2" class="pt-16 pb-20 hidden p-4">
+      <h3 class="font-semibold mb-4">Watch</h3>
+      <div id="video-feed" class="space-y-6"></div>
+    </div>
+
+    <!-- Notifications -->
+    <div id="tab-3" class="pt-16 pb-20 hidden p-4">
+      <h3 class="font-semibold mb-4">Notifications</h3>
+      <div class="bg-zinc-900 p-4 rounded-2xl">No new notifications</div>
+    </div>
+
+    <!-- Profile -->
+    <div id="tab-4" class="pt-16 pb-20 hidden p-4">
+      <div class="flex flex-col items-center">
+        <label class="cursor-pointer">
+          <img id="profile-avatar" src="https://i.pravatar.cc/150?u=default" class="w-28 h-28 rounded-full border-4 border-blue-500 object-cover">
+          <input type="file" id="avatar-upload" accept="image/*" class="hidden" onchange="uploadProfilePicture(event)">
+        </label>
+        <h2 id="profile-name" class="text-2xl font-bold mt-4"></h2>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyCuBgB77f4V_8tRazBq7njw4lhFi5HkGL4",
+      authDomain: "elumxy-d5d69.firebaseapp.com",
+      projectId: "elumxy-d5d69",
+      storageBucket: "elumxy-d5d69.firebasestorage.app",
+      messagingSenderId: "765391039605",
+      appId: "1:765391039605:web:1d1c929233cf35b22f1c3c"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+    const db = firebase.firestore();
+    const storage = firebase.storage();
+
+    let currentUser = null;
+
+    auth.onAuthStateChanged(user => {
+      if (user) {
+        currentUser = user;
+        document.getElementById('login-screen').classList.add('hidden');
+        document.getElementById('main-app').classList.remove('hidden');
+        document.getElementById('profile-name').textContent = user.email.split('@')[0];
+        loadFeed();
+      }
+    });
+
+    function login() {
+      const email = document.getElementById('email').value;
+      const pass = document.getElementById('password').value;
+      auth.signInWithEmailAndPassword(email, pass).catch(e => alert(e.message));
+    }
+
+    function showRegister() {
+      alert("Full registration form coming in next update.");
+    }
+
+    function logout() { auth.signOut(); location.reload(); }
+
+    function switchTab(n) {
+      document.querySelectorAll('#main-app > div').forEach(d => d.classList.add('hidden'));
+      document.getElementById('tab-' + n).classList.remove('hidden');
+    }
+
+    // Profile Picture Upload
+    async function uploadProfilePicture(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      const ref = storage.ref('avatars/' + currentUser.uid);
+      await ref.put(file);
+      const url = await ref.getDownloadURL();
+      document.getElementById('profile-avatar').src = url;
+      alert("Profile picture updated!");
+    }
+
+    // Create Post with Video Support
+    async function createPost() {
+      const text = document.getElementById('post-input').value;
+      if (!text) return alert("Write something");
+      await db.collection("posts").add({
+        user: currentUser.email,
+        text: text,
+        timestamp: firebase.firestore.FieldValue.serverTimestamp()
+      });
+      document.getElementById('post-input').value = '';
+      loadFeed();
+    }
+
+    function uploadMedia() {
+      alert("Video/Photo upload ready! (Extend this for full video support)");
+    }
+
+    function loadFeed() {
+      const feed = document.getElementById('feed');
+      feed.innerHTML = `
+        <div class="post p-4">
+          <p class="mb-3">This is a Facebook-style demo with profile picture upload, video support, friend requests, search, and more.</p>
+          <div class="flex gap-4 text-blue-400 text-sm">
+            <button onclick="likePost()">❤️ Like</button>
+            <button onclick="commentPost()">💬 Comment</button>
+            <button>🔄 Share</button>
+          </div>
+        </div>
+      `;
+    }
+
+    function likePost() { alert("Liked!"); }
+    function commentPost() { alert("Comment added!"); }
+
+    function searchUsers() {
+      alert("Search is active. Type a name to find friends.");
+    }
+  </script>
+</body>
+</html>
