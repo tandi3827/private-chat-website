@@ -1,27 +1,9 @@
-name: Publish to npm
-on:
-  release:
-    types: [published]
-jobs:
-  build:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '24'
-          registry-url: 'https://registry.npmjs.org'
-      - run: npm ci
-  publish-npm:
-    needs: build
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '24'
-          registry-url: 'https://registry.npmjs.org'
-      - run: npm ci
-      - run: npm publish --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NODE_AUTH_TOKEN }}
+{
+  "name": "@tandi3827/private-chat-website",
+  "version": "1.0.0",
+  "description": "Private chat website",
+  "main": "script.js",
+  "scripts": {"test": "echo \"No test specified\""},
+  "author": "tandi3827",
+  "license": "ISC"
+}
